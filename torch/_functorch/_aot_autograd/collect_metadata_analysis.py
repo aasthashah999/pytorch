@@ -125,6 +125,44 @@ def coerce_tangent_and_suggest_memory_format(x: Tensor):
     return out, out_memory_format, updated
 
 
+def extract_view_graph_module(
+    gm: torch.fx.GraphModule,
+    output_node: torch.fx.Node,
+    tgt_node: torch.fx.Node
+) -> torch.fx.GraphModule:
+    """
+    Given a graph module, gm, and the output_node, output, where
+    output_node is a alias (some combination of views on the tgt_node),
+    we want to extract a graph module that performs the view operations on
+    tgt_node to reach output_node.
+    """
+    # Create a new graph to hold the extracted operations
+    new_graph = torch.fx.Graph()
+
+    # Create a mapping from old nodes to new nodes
+    node_mapping = {}
+
+    # Traverse the graph from tgt_node to output_node
+    current_node = output_node
+    while current_node != tgt_node:
+        # Copy the current node to the new graph
+        new_node = new_graph.node_copy(current_node, lambda n: node_mapping[n])
+        node_mapping[current_node] = new_node
+
+        # Move to the next node in the path
+        current_node = current_node.args[0]  # Assuming a single input for simplicity
+
+    # Add the target node to the new graph
+    node_mapping[tgt_node] = new_graph.node_copy(tgt_node, lambda n: node_mapping[n])
+
+    # Create a new GraphModule with the extracted graph
+    new_gm = torch.fx.GraphModule(gm, new_graph)
+
+    return new_gm
+
+# TODO: Test integration of this 
+
+
 # This is a version of functionalization that is specifically designed
 # for the AOTAutograd use case.
 #
