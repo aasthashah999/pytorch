@@ -384,7 +384,9 @@ def register_dataclass(
 CONSTANT_NODES: set[type] = set()
 
 
-def register_constant(cls: type[Any]) -> None:
+def register_constant(
+    cls: type[Any], serialized_type_name: Optional[str] = None
+) -> None:
     """Registers a type as a pytree node with no leaves.
 
     In a :func:`torch.compile` region, if instances of these types get passed to
@@ -414,6 +416,8 @@ def register_constant(cls: type[Any]) -> None:
 
     Args:
         cls: the type to register as a constant. This type must be hashable.
+        serialized_type_name: A keyword argument used to specify the fully qualified
+        name used when serializing the constant
 
     Example:
 
@@ -452,12 +456,26 @@ def register_constant(cls: type[Any]) -> None:
     def _flatten_with_keys(x):  # type: ignore[no-untyped-def]
         return [], ConstantNode(x)
 
+    to_dumpable_context = None
+    from_dumpable_context = None
+
+    if serialized_type_name is not None:
+
+        def _to_dumpable_context(x: Any) -> str:
+            return serialized_type_name
+
+        to_dumpable_context = _to_dumpable_context
+        from_dumpable_context = _constant_deserialize
+
     with _NODE_REGISTRY_LOCK:
         _private_register_pytree_node(
             cls,
             _flatten,
             _unflatten,
             flatten_with_keys_fn=_flatten_with_keys,
+            serialized_type_name=serialized_type_name,
+            to_dumpable_context=to_dumpable_context,
+            from_dumpable_context=from_dumpable_context,
         )
         CONSTANT_NODES.add(cls)
 
@@ -833,6 +851,17 @@ def _namedtuple_deserialize(dumpable_context: DumpableContext) -> Context:
     if dumpable_context not in SERIALIZED_TYPE_TO_PYTHON_TYPE:
         raise NotImplementedError(
             f"Can't deserialize TreeSpec of namedtuple class {dumpable_context} "
+            "because we couldn't find a serializated name."
+        )
+
+    typ = SERIALIZED_TYPE_TO_PYTHON_TYPE[dumpable_context]
+    return typ
+
+
+def _constant_deserialize(dumpable_context: DumpableContext) -> Context:
+    if dumpable_context not in SERIALIZED_TYPE_TO_PYTHON_TYPE:
+        raise NotImplementedError(
+            f"Can't deserialize spec of constant class {dumpable_context} "
             "because we couldn't find a serializated name."
         )
 
