@@ -597,6 +597,7 @@ libtorch_nativert_sources = [
     "torch/nativert/executor/Placement.cpp",
     "torch/nativert/executor/PlacementUtils.cpp",
     "torch/nativert/common/FileUtil.cpp",
+    "torch/nativert/detail/Pytree.cpp",
 ]
 
 torch_mobile_tracer_sources = [
