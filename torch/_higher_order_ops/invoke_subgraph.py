@@ -81,7 +81,7 @@ class InvokeSubgraphHOP(HigherOrderOperator):
     def gen_schema(self, subgraph, identifier, *operands):
         from torch._higher_order_ops.schema import HopSchemaGenerator
         from torch._higher_order_ops.utils import (
-            check_input_alias_and_mutation_return_ouputs,
+            check_input_alias_and_mutation_return_outputs,
             materialize_as_graph,
         )
 
@@ -98,9 +98,13 @@ class InvokeSubgraphHOP(HigherOrderOperator):
             n.meta["val"] if "val" in n.meta else n.meta["example_value"]
             for n in gm.graph.find_nodes(op="placeholder")
         ]
-        _, _, _, mutated_inputs, outputs = check_input_alias_and_mutation_return_ouputs(
-            gm, example_inputs
-        )
+        (
+            _,
+            _,
+            _,
+            mutated_inputs,
+            outputs,
+        ) = check_input_alias_and_mutation_return_outputs(gm, example_inputs)
         for idx, arg in enumerate(operands):
             schema_gen.add_arg(f"arg{idx}", arg, is_mutated=idx in mutated_inputs)
         for out in outputs:
@@ -544,8 +548,8 @@ def _(ctx, subgraph, identifier, *operands):
     )
 
     unwrapped_operands = ctx.unwrap_tensors(operands)
-    hop_schema = invoke_subgraph.gen_schema(subgraph, identifier, *operands)
-    if can_auto_functionalize(HopInstance(invoke_subgraph, hop_schema)):
+    hop_instance = HopInstance.create(invoke_subgraph, subgraph, identifier, *operands)
+    if can_auto_functionalize(hop_instance):
         # NOTE: [auto_functionalize x invoke_subgraph caching]
         # We call auto_functionalized_v2 to support input mutation of invoke_subgraph.
         # See NOTE [Support input mutation of hops] for the overall design.
@@ -557,7 +561,7 @@ def _(ctx, subgraph, identifier, *operands):
         assert isinstance(identifier, str), identifier
         return do_auto_functionalize_v2(
             ctx.mode,
-            invoke_subgraph,
+            hop_instance,
             (subgraph, "auto_functionalized_" + identifier, *operands),
             {},
         )

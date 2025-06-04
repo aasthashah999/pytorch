@@ -756,11 +756,11 @@ def check_input_alias_and_mutation(
         inp_out_alias_map,
         out_out_alias_map,
         mutated_inputs,
-    ) = check_input_alias_and_mutation_return_ouputs(gm, fake_args)[:-1]
+    ) = check_input_alias_and_mutation_return_outputs(gm, fake_args)[:-1]
     return inp_inp_alias_map, inp_out_alias_map, out_out_alias_map, mutated_inputs
 
 
-def check_input_alias_and_mutation_return_ouputs(
+def check_input_alias_and_mutation_return_outputs(
     gm: torch.fx.GraphModule,
     fake_args: Union[list[FakeTensor], tuple[FakeTensor, ...]],
 ) -> tuple[
@@ -957,6 +957,10 @@ class HopInstance:
 
     def __call__(self, *args, **kwargs):
         return self._op(*args, **kwargs)
+
+    @staticmethod
+    def create(hop: HigherOrderOperator, *args, **kwargs):
+        return HopInstance(hop, hop.gen_schema(*args, **kwargs))
 
 
 # This call_op can be used to call a HopInstance with
